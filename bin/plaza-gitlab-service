@@ -3,11 +3,29 @@
 import logging
 import sys
 from plaza_service import PlazaService
+import gitlab
 
+from plaza_gitlab_service import serializers
+
+GITLAB_INSTANCE = 'https://gitlab.com'
+PRIVATE_TOKEN = <REDACTED>
 
 class GitlabService(PlazaService):
+    def __init__(self, *args, **kwargs):
+        PlazaService.__init__(self, *args, **kwargs)
+        self.SUPPORTED_FUNCTIONS = {
+            'get_issues': self.get_issues
+        }
+
+
+    def get_issues(self, project_id):
+        gl = gitlab.Gitlab(GITLAB_INSTANCE, private_token=PRIVATE_TOKEN)
+        project = gl.projects.get(project_id)
+        return list(map(serializers.serialize_issue, project.issues.list()))
+
     def handle_call(self, function_name, arguments):
-        print("{}({})".format(function_name, ", ".join(arguments)))
+        logging.info("{}({})".format(function_name, ", ".join(arguments)))
+        return self.SUPPORTED_FUNCTIONS[function_name](*arguments)
 
 
 if __name__ == "__main__":

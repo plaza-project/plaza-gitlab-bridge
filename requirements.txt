@@ -1,0 +1,5 @@
+# Gitlab
+python-gitlab
+
+# Plaza
+plaza-service

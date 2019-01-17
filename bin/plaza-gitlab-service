@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+
+import logging
+import sys
+from plaza_service import PlazaService
+
+
+class GitlabService(PlazaService):
+    def handle_call(self, function_name, arguments):
+        print("{}({})".format(function_name, ", ".join(arguments)))
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("{} <service-operation-url>".format(sys.argv[0]))
+        exit(0)
+
+    logging.basicConfig()
+    logging.getLogger().setLevel(logging.DEBUG)
+    service = GitlabService(sys.argv[1])
+    service.run()

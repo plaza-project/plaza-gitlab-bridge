@@ -2,21 +2,24 @@
 
 import logging
 import sys
-from plaza_service import PlazaService
+from plaza_service import (
+    PlazaService,
+    ServiceConfiguration,
+    ServiceBlock,
+    BlockArgument,
+)
 import gitlab
 
 from plaza_gitlab_service import serializers
 
-GITLAB_INSTANCE = 'https://gitlab.com'
+GITLAB_INSTANCE = "https://gitlab.com"
 PRIVATE_TOKEN = <REDACTED>
+
 
 class GitlabService(PlazaService):
     def __init__(self, *args, **kwargs):
         PlazaService.__init__(self, *args, **kwargs)
-        self.SUPPORTED_FUNCTIONS = {
-            'get_issues': self.get_issues
-        }
-
+        self.SUPPORTED_FUNCTIONS = {"get_issues": self.get_issues}
 
     def get_issues(self, project_id):
         gl = gitlab.Gitlab(GITLAB_INSTANCE, private_token=PRIVATE_TOKEN)
@@ -26,6 +29,19 @@ class GitlabService(PlazaService):
     def handle_call(self, function_name, arguments):
         logging.info("{}({})".format(function_name, ", ".join(arguments)))
         return self.SUPPORTED_FUNCTIONS[function_name](*arguments)
+
+    def handle_configuration(self):
+        return ServiceConfiguration(
+            service_name="Gitlab",
+            is_public=False,
+            blocks=[
+                ServiceBlock(
+                    function_name="get_issues",
+                    message="Get issues from project %1",
+                    arguments=[BlockArgument(type=str, default="kenkeiras/plaza")],
+                )
+            ],
+        )
 
 
 if __name__ == "__main__":

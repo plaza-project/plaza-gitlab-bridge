@@ -32,7 +32,7 @@ def serialize_time(time_stats):
 
 
 def ignore(_):
-    return '__skipped'
+    return "__skipped"
 
 
 ISSUE_FIELDS = {

@@ -7,6 +7,7 @@ from plaza_service import (
     ServiceConfiguration,
     ServiceBlock,
     BlockArgument,
+    BlockType,
 )
 import gitlab
 
@@ -19,7 +20,7 @@ PRIVATE_TOKEN = <REDACTED>
 class GitlabService(PlazaService):
     def __init__(self, *args, **kwargs):
         PlazaService.__init__(self, *args, **kwargs)
-        self.SUPPORTED_FUNCTIONS = {"get_issues": self.get_issues}
+        self.SUPPORTED_FUNCTIONS = {"get_issues_from_project": self.get_issues}
 
     def get_issues(self, project_id):
         gl = gitlab.Gitlab(GITLAB_INSTANCE, private_token=PRIVATE_TOKEN)
@@ -36,9 +37,12 @@ class GitlabService(PlazaService):
             is_public=False,
             blocks=[
                 ServiceBlock(
+                    id="get_issues_from_project",
                     function_name="get_issues",
                     message="Get issues from project %1",
                     arguments=[BlockArgument(type=str, default="kenkeiras/plaza")],
+                    block_type=BlockType.GETTER,
+                    block_result_type=None,  # TODO: change
                 )
             ],
         )

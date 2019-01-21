@@ -27,8 +27,8 @@ class GitlabService(PlazaService):
         project = gl.projects.get(project_id)
         return list(map(serializers.serialize_issue, project.issues.list()))
 
-    async def handle_call(self, function_name, arguments):
-        logging.info("{}({})".format(function_name, ", ".join(arguments)))
+    async def handle_call(self, function_name, arguments, extra_data):
+        logging.info("{}({}) # {}".format(function_name, ", ".join(arguments), extra_data.user_id))
         return self.SUPPORTED_FUNCTIONS[function_name](*arguments)
 
     def handle_configuration(self):
@@ -57,3 +57,4 @@ if __name__ == "__main__":
     logging.getLogger().setLevel(logging.DEBUG)
     service = GitlabService(sys.argv[1])
     service.run()
+

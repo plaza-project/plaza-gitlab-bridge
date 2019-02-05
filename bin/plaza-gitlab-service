@@ -8,6 +8,7 @@ from plaza_service import (
     ServiceBlock,
     BlockArgument,
     BlockType,
+    FormBasedServiceRegistration,
 )
 import gitlab
 
@@ -17,9 +18,25 @@ GITLAB_INSTANCE = "https://gitlab.com"
 PRIVATE_TOKEN = <REDACTED>
 
 
+class Registerer(FormBasedServiceRegistration):
+    def __init__(self, *args, **kwargs):
+        FormBasedServiceRegistration.__init__(self, *args, **kwargs)
+
+    def get_call_to_action_text(self):
+        return """
+        Introduce access data for gitlab:
+
+        Gitlab instance: <input name="instance" type="url" value="https://gitlab.com" placeholder="URL for the gitlab instance">
+        Access token:    <input name="token" type="text" placeholder="Generated access token">
+
+        See <autolink><value placeholder="your-gitlab-instance" from="instance">/profile/personal_access_tokens</autolink> to get a access token
+        """
+
+
 class GitlabService(PlazaService):
     def __init__(self, *args, **kwargs):
         PlazaService.__init__(self, *args, **kwargs)
+        self.registerer = Registerer(self)
         self.SUPPORTED_FUNCTIONS = {"get_issues_from_project": self.get_issues}
 
     def get_issues(self, project_id):
@@ -28,13 +45,18 @@ class GitlabService(PlazaService):
         return list(map(serializers.serialize_issue, project.issues.list()))
 
     async def handle_call(self, function_name, arguments, extra_data):
-        logging.info("{}({}) # {}".format(function_name, ", ".join(arguments), extra_data.user_id))
+        logging.info(
+            "{}({}) # {}".format(
+                function_name, ", ".join(arguments), extra_data.user_id
+            )
+        )
         return self.SUPPORTED_FUNCTIONS[function_name](*arguments)
 
     def handle_configuration(self):
         return ServiceConfiguration(
             service_name="Gitlab",
             is_public=False,
+            registration=self.registerer,
             blocks=[
                 ServiceBlock(
                     id="get_issues_from_project",

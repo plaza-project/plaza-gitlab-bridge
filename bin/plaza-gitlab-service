@@ -2,6 +2,7 @@
 
 import logging
 import sys
+import json
 from plaza_service import (
     PlazaService,
     ServiceConfiguration,
@@ -31,6 +32,14 @@ class Registerer(FormBasedServiceRegistration):
 
         See <autolink><value placeholder="your-gitlab-instance" from="instance">/profile/personal_access_tokens</autolink> to get a access token
         """
+
+    async def register(self, data, extra_data):
+        print(
+            "User {} is registered with: {}".format(
+                extra_data.user_id, json.dumps(data, indent=4)
+            )
+        )
+        return True
 
 
 class GitlabService(PlazaService):

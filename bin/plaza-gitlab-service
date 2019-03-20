@@ -13,7 +13,7 @@ from plaza_service import (
 )
 import gitlab
 
-from plaza_gitlab_service import serializers
+from plaza_gitlab_service import serializers, config
 
 GITLAB_INSTANCE = "https://gitlab.com"
 PRIVATE_TOKEN = <REDACTED>
@@ -23,7 +23,7 @@ class Registerer(FormBasedServiceRegistration):
     def __init__(self, *args, **kwargs):
         FormBasedServiceRegistration.__init__(self, *args, **kwargs)
 
-    def get_call_to_action_text(self):
+    def get_call_to_action_text(self, extra_data):
         return """
         Introduce access data for gitlab:
 
@@ -80,12 +80,11 @@ class GitlabService(PlazaService):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("{} <service-operation-url>".format(sys.argv[0]))
-        exit(0)
-
     logging.basicConfig()
     logging.getLogger().setLevel(logging.DEBUG)
-    service = GitlabService(sys.argv[1])
+
+    bridge_endpoint = config.get_bridge_endpoint()
+
+    service = GitlabService(bridge_endpoint)
     service.run()
 

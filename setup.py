@@ -12,5 +12,6 @@ setup(name='plaza-gitlab-service',
       install_requires = [
           'python-gitlab',
           'plaza_service',
+          'xdg',
       ],
       zip_safe=False)

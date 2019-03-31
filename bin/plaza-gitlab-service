@@ -14,9 +14,7 @@ from plaza_service import (
 import gitlab
 
 from plaza_gitlab_service import serializers, config
-
-GITLAB_INSTANCE = "https://gitlab.com"
-PRIVATE_TOKEN = <REDACTED>
+from plaza_gitlab_service.storage import sqlite_storage
 
 
 class Registerer(FormBasedServiceRegistration):
@@ -36,17 +34,30 @@ class Registerer(FormBasedServiceRegistration):
     async def register(self, data, extra_data):
         print(
             "User {} is registered with: {}".format(
-                extra_data.user_id, json.dumps(data, indent=4)
+                extra_data.user_id, json.dumps(data["form"], indent=4)
             )
+        )
+
+        self.service.register(
+            extra_data.user_id, data["form"]["instance"], data["form"]["token"]
         )
         return True
 
 
 class GitlabService(PlazaService):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, storage, *args, **kwargs):
         PlazaService.__init__(self, *args, **kwargs)
+        self.storage = storage
         self.registerer = Registerer(self)
         self.SUPPORTED_FUNCTIONS = {"get_issues_from_project": self.get_issues}
+
+    def register(self, plaza_user_id, gitlab_instance, gitlab_token):
+        print(gitlab_instance)
+        gl = gitlab.Gitlab(gitlab_instance, private_token=gitlab_token)
+        gl.auth()
+        gitlab_user_id = gl.user.attributes["id"]
+        username = gl.user.attributes["username"]
+        self.storage.register_user(gitlab_user_id, plaza_user_id, gitlab_username=username)
 
     def get_issues(self, project_id):
         gl = gitlab.Gitlab(GITLAB_INSTANCE, private_token=PRIVATE_TOKEN)
@@ -85,6 +96,6 @@ if __name__ == "__main__":
 
     bridge_endpoint = config.get_bridge_endpoint()
 
-    service = GitlabService(bridge_endpoint)
+    service = GitlabService(sqlite_storage.get_default(), bridge_endpoint)
     service.run()
 

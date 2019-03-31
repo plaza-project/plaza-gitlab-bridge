@@ -8,6 +8,7 @@ from plaza_service import (
     ServiceConfiguration,
     ServiceBlock,
     BlockArgument,
+    DynamicBlockArgument,
     BlockType,
     FormBasedServiceRegistration,
 )
@@ -50,6 +51,7 @@ class GitlabService(PlazaService):
         self.storage = storage
         self.registerer = Registerer(self)
         self.SUPPORTED_FUNCTIONS = {"get_issues_from_project": self.get_issues}
+        self.SUPPORTED_CALLBACKS = {"get_owned_projects": self.get_owned_projects}
 
     def register(self, plaza_user_id, gitlab_instance, gitlab_token):
         print(gitlab_instance)
@@ -57,7 +59,15 @@ class GitlabService(PlazaService):
         gl.auth()
         gitlab_user_id = gl.user.attributes["id"]
         username = gl.user.attributes["username"]
-        self.storage.register_user(gitlab_user_id, plaza_user_id, gitlab_username=username)
+        self.storage.register_user(
+            {
+                "user_id": gitlab_user_id,
+                "instance": gitlab_instance,
+                "token": gitlab_token,
+                "username": username,
+            },
+            plaza_user_id,
+        )
 
     def get_issues(self, project_id):
         gl = gitlab.Gitlab(GITLAB_INSTANCE, private_token=PRIVATE_TOKEN)
@@ -72,6 +82,22 @@ class GitlabService(PlazaService):
         )
         return self.SUPPORTED_FUNCTIONS[function_name](*arguments)
 
+    async def handle_data_callback(self, callback_name, extra_data):
+        logging.info("GET {} # {}".format(callback_name, extra_data.user_id))
+        results = {}
+        return await self.SUPPORTED_CALLBACKS[callback_name](callback_name, extra_data)
+
+    async def get_owned_projects(self, _callback_name, extra_data):
+        results = {}
+        for user in self.storage.get_gitlab_users(extra_data.user_id):
+            gl = gitlab.Gitlab(user["instance"], user["token"])
+            for project in gl.projects.list(owned=True):
+                results[project.attributes["id"]] = {
+                    "name": project.attributes["name_with_namespace"]
+                }
+
+        return results
+
     def handle_configuration(self):
         return ServiceConfiguration(
             service_name="Gitlab",
@@ -81,8 +107,8 @@ class GitlabService(PlazaService):
                 ServiceBlock(
                     id="get_issues_from_project",
                     function_name="get_issues",
-                    message="Get issues from project %1",
-                    arguments=[BlockArgument(type=str, default="kenkeiras/plaza")],
+                    message="Get issues from own project: %1",
+                    arguments=[DynamicBlockArgument(str, "get_owned_projects")],
                     block_type=BlockType.GETTER,
                     block_result_type=None,  # TODO: change
                 )

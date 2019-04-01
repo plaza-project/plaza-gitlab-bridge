@@ -8,8 +8,11 @@ from plaza_service import (
     ServiceConfiguration,
     ServiceBlock,
     BlockArgument,
+    BlockContext,
     DynamicBlockArgument,
+    VariableBlockArgument,
     BlockType,
+    VariableClass,
     FormBasedServiceRegistration,
 )
 import gitlab
@@ -54,7 +57,6 @@ class GitlabService(PlazaService):
         self.SUPPORTED_CALLBACKS = {"get_owned_projects": self.get_owned_projects}
 
     def register(self, plaza_user_id, gitlab_instance, gitlab_token):
-        print(gitlab_instance)
         gl = gitlab.Gitlab(gitlab_instance, private_token=gitlab_token)
         gl.auth()
         gitlab_user_id = gl.user.attributes["id"]
@@ -69,10 +71,28 @@ class GitlabService(PlazaService):
             plaza_user_id,
         )
 
-    def get_issues(self, project_id):
-        gl = gitlab.Gitlab(GITLAB_INSTANCE, private_token=PRIVATE_TOKEN)
-        project = gl.projects.get(project_id)
-        return list(map(serializers.serialize_issue, project.issues.list()))
+    async def get_issues(self, project_id, extra_data):
+        for user in self.storage.get_gitlab_users(extra_data.user_id):
+            # TODO: save which user has access to which process
+            gl = gitlab.Gitlab(user["instance"], user["token"])
+            try:
+                project = gl.projects.get(project_id, lazy=True)
+                issues = project.issues.list()
+            except Exception as e:
+                # Maybe the token is not the correct one
+                logging.info("[Get issues] Exception: {}".format(e))
+                continue
+
+            results = []
+            for issue in issues:
+                issue_id = "{project_id}/{issue_id}".format(
+                    project_id=project_id, issue_id=issue.attributes["iid"]
+                )
+
+                results.append(issue_id)
+            return results
+
+        raise Exception("Not found")
 
     async def handle_call(self, function_name, arguments, extra_data):
         logging.info(
@@ -80,11 +100,10 @@ class GitlabService(PlazaService):
                 function_name, ", ".join(arguments), extra_data.user_id
             )
         )
-        return self.SUPPORTED_FUNCTIONS[function_name](*arguments)
+        return await self.SUPPORTED_FUNCTIONS[function_name](*arguments, extra_data)
 
     async def handle_data_callback(self, callback_name, extra_data):
         logging.info("GET {} # {}".format(callback_name, extra_data.user_id))
-        results = {}
         return await self.SUPPORTED_CALLBACKS[callback_name](callback_name, extra_data)
 
     async def get_owned_projects(self, _callback_name, extra_data):
@@ -107,9 +126,13 @@ class GitlabService(PlazaService):
                 ServiceBlock(
                     id="get_issues_from_project",
                     function_name="get_issues",
-                    message="Get issues from own project: %1",
-                    arguments=[DynamicBlockArgument(str, "get_owned_projects")],
-                    block_type=BlockType.GETTER,
+                    message="Save issues from own project %1 to list %2",
+                    arguments=[
+                        DynamicBlockArgument(str, "get_owned_projects"),
+                        VariableBlockArgument(VariableClass.LIST),
+                    ],
+                    save_to=BlockContext.ARGUMENTS[1],
+                    block_type=BlockType.OPERATION,
                     block_result_type=None,  # TODO: change
                 )
             ],

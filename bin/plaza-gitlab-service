@@ -53,7 +53,10 @@ class GitlabService(PlazaService):
         PlazaService.__init__(self, *args, **kwargs)
         self.storage = storage
         self.registerer = Registerer(self)
-        self.SUPPORTED_FUNCTIONS = {"get_issues_from_project": self.get_issues}
+        self.SUPPORTED_FUNCTIONS = {
+            "get_issues_from_project": self.get_issues,
+            "is_issue_open": self.is_issue_open,
+        }
         self.SUPPORTED_CALLBACKS = {"get_owned_projects": self.get_owned_projects}
 
     def register(self, plaza_user_id, gitlab_instance, gitlab_token):
@@ -91,6 +94,24 @@ class GitlabService(PlazaService):
 
                 results.append(issue_id)
             return results
+
+        raise Exception("Not found")
+
+    async def is_issue_open(self, issue_pointer, extra_data):
+        print(issue_pointer)
+        project_id, issue_id = issue_pointer.split('/')
+        for user in self.storage.get_gitlab_users(extra_data.user_id):
+            # TODO: save which user has access to which process
+            gl = gitlab.Gitlab(user["instance"], user["token"])
+            try:
+                project = gl.projects.get(project_id, lazy=True)
+                issue = project.issues.get(issue_id)
+            except Exception as e:
+                # Maybe the token is not the correct one
+                logging.info("[Get issues] Exception: {}".format(e))
+                continue
+
+            return issue.attributes['state'] == 'opened'
 
         raise Exception("Not found")
 
@@ -134,7 +155,18 @@ class GitlabService(PlazaService):
                     save_to=BlockContext.ARGUMENTS[1],
                     block_type=BlockType.OPERATION,
                     block_result_type=None,  # TODO: change
-                )
+                ),
+                ServiceBlock(
+                    id="is_issue_open",
+                    function_name="is_issue_open",
+                    message="Is issue %1 open?",
+                    arguments=[
+                        BlockArgument(str, "Add here an issue variable"),
+                    ],
+                    save_to=BlockContext.ARGUMENTS[1],
+                    block_type=BlockType.GETTER,
+                    block_result_type="boolean",  # TODO: change
+                ),
             ],
         )
 

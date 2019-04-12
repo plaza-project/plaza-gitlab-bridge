@@ -55,7 +55,12 @@ class GitlabService(PlazaService):
         self.registerer = Registerer(self)
         self.SUPPORTED_FUNCTIONS = {
             "get_issues_from_project": self.get_issues,
+
             "is_issue_open": self.is_issue_open,
+            "get_issue_assignee": self.get_issue_assignee,
+            "get_issue_author": self.get_issue_author,
+            "get_issue_title": self.get_issue_title,
+            "get_issue_url": self.get_issue_url,
         }
         self.SUPPORTED_CALLBACKS = {"get_owned_projects": self.get_owned_projects}
 
@@ -97,8 +102,7 @@ class GitlabService(PlazaService):
 
         raise Exception("Not found")
 
-    async def is_issue_open(self, issue_pointer, extra_data):
-        print(issue_pointer)
+    async def _get_issue_property(self, issue_pointer, extra_data, getter):
         project_id, issue_id = issue_pointer.split('/')
         for user in self.storage.get_gitlab_users(extra_data.user_id):
             # TODO: save which user has access to which process
@@ -111,9 +115,37 @@ class GitlabService(PlazaService):
                 logging.info("[Get issues] Exception: {}".format(e))
                 continue
 
-            return issue.attributes['state'] == 'opened'
+            return getter(issue)
 
         raise Exception("Not found")
+
+
+    async def is_issue_open(self, issue_pointer, extra_data):
+        return await self._get_issue_property(issue_pointer, extra_data,
+                                              lambda issue: issue.attributes['state'] == 'opened')
+
+    async def get_issue_assignee(self, issue_pointer, extra_data):
+        def _get_assignee(issue):
+            assignees = issue.attributes['assignees']
+            if assignees is None or len(assignees) == 0:
+                return 'none'
+            return assignees[0]['username']
+
+        return await self._get_issue_property(issue_pointer, extra_data,
+                                              _get_assignee)
+
+
+    async def get_issue_author(self, issue_pointer, extra_data):
+        return await self._get_issue_property(issue_pointer, extra_data,
+                                              lambda issue: issue.attributes['author']['username'])
+
+    async def get_issue_title(self, issue_pointer, extra_data):
+        return await self._get_issue_property(issue_pointer, extra_data,
+                                              lambda issue: issue.attributes['title'])
+
+    async def get_issue_url(self, issue_pointer, extra_data):
+        return await self._get_issue_property(issue_pointer, extra_data,
+                                              lambda issue: issue.attributes['web_url'])
 
     async def handle_call(self, function_name, arguments, extra_data):
         logging.info(
@@ -163,9 +195,48 @@ class GitlabService(PlazaService):
                     arguments=[
                         BlockArgument(str, "Add here an issue variable"),
                     ],
-                    save_to=BlockContext.ARGUMENTS[1],
                     block_type=BlockType.GETTER,
                     block_result_type="boolean",  # TODO: change
+                ),
+                ServiceBlock(
+                    id="get_issue_assignee",
+                    function_name="get_issue_assignee",
+                    message="Get issue %1 assignee",
+                    arguments=[
+                        BlockArgument(str, "Add here an issue variable"),
+                    ],
+                    block_type=BlockType.GETTER,
+                    block_result_type="string",  # TODO: change
+                ),
+                ServiceBlock(
+                    id="get_issue_author",
+                    function_name="get_issue_author",
+                    message="Get issue %1 author",
+                    arguments=[
+                        BlockArgument(str, "Add here an issue variable"),
+                    ],
+                    block_type=BlockType.GETTER,
+                    block_result_type="string",  # TODO: change
+                ),
+                ServiceBlock(
+                    id="get_issue_title",
+                    function_name="get_issue_title",
+                    message="Get issue %1 title",
+                    arguments=[
+                        BlockArgument(str, "Add here an issue variable"),
+                    ],
+                    block_type=BlockType.GETTER,
+                    block_result_type="string",  # TODO: change
+                ),
+                ServiceBlock(
+                    id="get_issue_url",
+                    function_name="get_issue_url",
+                    message="Get issue %1 URL",
+                    arguments=[
+                        BlockArgument(str, "Add here an issue variable"),
+                    ],
+                    block_type=BlockType.GETTER,
+                    block_result_type="string",  # TODO: change
                 ),
             ],
         )

@@ -8,22 +8,24 @@ from plaza_service import (
     ServiceConfiguration,
     ServiceBlock,
     BlockArgument,
+    BlockContext,
+    DynamicBlockArgument,
+    VariableBlockArgument,
     BlockType,
+    VariableClass,
     FormBasedServiceRegistration,
 )
 import gitlab
 
-from plaza_gitlab_service import serializers
-
-GITLAB_INSTANCE = "https://gitlab.com"
-PRIVATE_TOKEN = <REDACTED>
+from plaza_gitlab_service import serializers, config
+from plaza_gitlab_service.storage import sqlite_storage
 
 
 class Registerer(FormBasedServiceRegistration):
     def __init__(self, *args, **kwargs):
         FormBasedServiceRegistration.__init__(self, *args, **kwargs)
 
-    def get_call_to_action_text(self):
+    def get_call_to_action_text(self, extra_data):
         return """
         Introduce access data for gitlab:
 
@@ -36,22 +38,114 @@ class Registerer(FormBasedServiceRegistration):
     async def register(self, data, extra_data):
         print(
             "User {} is registered with: {}".format(
-                extra_data.user_id, json.dumps(data, indent=4)
+                extra_data.user_id, json.dumps(data["form"], indent=4)
             )
+        )
+
+        self.service.register(
+            extra_data.user_id, data["form"]["instance"], data["form"]["token"]
         )
         return True
 
 
 class GitlabService(PlazaService):
-    def __init__(self, *args, **kwargs):
+    def __init__(self, storage, *args, **kwargs):
         PlazaService.__init__(self, *args, **kwargs)
+        self.storage = storage
         self.registerer = Registerer(self)
-        self.SUPPORTED_FUNCTIONS = {"get_issues_from_project": self.get_issues}
+        self.SUPPORTED_FUNCTIONS = {
+            "get_issues_from_project": self.get_issues,
 
-    def get_issues(self, project_id):
-        gl = gitlab.Gitlab(GITLAB_INSTANCE, private_token=PRIVATE_TOKEN)
-        project = gl.projects.get(project_id)
-        return list(map(serializers.serialize_issue, project.issues.list()))
+            "is_issue_open": self.is_issue_open,
+            "get_issue_assignee": self.get_issue_assignee,
+            "get_issue_author": self.get_issue_author,
+            "get_issue_title": self.get_issue_title,
+            "get_issue_url": self.get_issue_url,
+        }
+        self.SUPPORTED_CALLBACKS = {"get_owned_projects": self.get_owned_projects}
+
+    def register(self, plaza_user_id, gitlab_instance, gitlab_token):
+        gl = gitlab.Gitlab(gitlab_instance, private_token=gitlab_token)
+        gl.auth()
+        gitlab_user_id = gl.user.attributes["id"]
+        username = gl.user.attributes["username"]
+        self.storage.register_user(
+            {
+                "user_id": gitlab_user_id,
+                "instance": gitlab_instance,
+                "token": gitlab_token,
+                "username": username,
+            },
+            plaza_user_id,
+        )
+
+    async def get_issues(self, project_id, extra_data):
+        for user in self.storage.get_gitlab_users(extra_data.user_id):
+            # TODO: save which user has access to which process
+            gl = gitlab.Gitlab(user["instance"], user["token"])
+            try:
+                project = gl.projects.get(project_id, lazy=True)
+                issues = project.issues.list()
+            except Exception as e:
+                # Maybe the token is not the correct one
+                logging.info("[Get issues] Exception: {}".format(e))
+                continue
+
+            results = []
+            for issue in issues:
+                issue_id = "{project_id}/{issue_id}".format(
+                    project_id=project_id, issue_id=issue.attributes["iid"]
+                )
+
+                results.append(issue_id)
+            return results
+
+        raise Exception("Not found")
+
+    async def _get_issue_property(self, issue_pointer, extra_data, getter):
+        project_id, issue_id = issue_pointer.split('/')
+        for user in self.storage.get_gitlab_users(extra_data.user_id):
+            # TODO: save which user has access to which process
+            gl = gitlab.Gitlab(user["instance"], user["token"])
+            try:
+                project = gl.projects.get(project_id, lazy=True)
+                issue = project.issues.get(issue_id)
+            except Exception as e:
+                # Maybe the token is not the correct one
+                logging.info("[Get issues] Exception: {}".format(e))
+                continue
+
+            return getter(issue)
+
+        raise Exception("Not found")
+
+
+    async def is_issue_open(self, issue_pointer, extra_data):
+        return await self._get_issue_property(issue_pointer, extra_data,
+                                              lambda issue: issue.attributes['state'] == 'opened')
+
+    async def get_issue_assignee(self, issue_pointer, extra_data):
+        def _get_assignee(issue):
+            assignees = issue.attributes['assignees']
+            if assignees is None or len(assignees) == 0:
+                return 'none'
+            return assignees[0]['username']
+
+        return await self._get_issue_property(issue_pointer, extra_data,
+                                              _get_assignee)
+
+
+    async def get_issue_author(self, issue_pointer, extra_data):
+        return await self._get_issue_property(issue_pointer, extra_data,
+                                              lambda issue: issue.attributes['author']['username'])
+
+    async def get_issue_title(self, issue_pointer, extra_data):
+        return await self._get_issue_property(issue_pointer, extra_data,
+                                              lambda issue: issue.attributes['title'])
+
+    async def get_issue_url(self, issue_pointer, extra_data):
+        return await self._get_issue_property(issue_pointer, extra_data,
+                                              lambda issue: issue.attributes['web_url'])
 
     async def handle_call(self, function_name, arguments, extra_data):
         logging.info(
@@ -59,7 +153,22 @@ class GitlabService(PlazaService):
                 function_name, ", ".join(arguments), extra_data.user_id
             )
         )
-        return self.SUPPORTED_FUNCTIONS[function_name](*arguments)
+        return await self.SUPPORTED_FUNCTIONS[function_name](*arguments, extra_data)
+
+    async def handle_data_callback(self, callback_name, extra_data):
+        logging.info("GET {} # {}".format(callback_name, extra_data.user_id))
+        return await self.SUPPORTED_CALLBACKS[callback_name](callback_name, extra_data)
+
+    async def get_owned_projects(self, _callback_name, extra_data):
+        results = {}
+        for user in self.storage.get_gitlab_users(extra_data.user_id):
+            gl = gitlab.Gitlab(user["instance"], user["token"])
+            for project in gl.projects.list(owned=True):
+                results[project.attributes["id"]] = {
+                    "name": project.attributes["name_with_namespace"]
+                }
+
+        return results
 
     def handle_configuration(self):
         return ServiceConfiguration(
@@ -70,22 +179,75 @@ class GitlabService(PlazaService):
                 ServiceBlock(
                     id="get_issues_from_project",
                     function_name="get_issues",
-                    message="Get issues from project %1",
-                    arguments=[BlockArgument(type=str, default="kenkeiras/plaza")],
-                    block_type=BlockType.GETTER,
+                    message="Save issues from own project %1 to list %2",
+                    arguments=[
+                        DynamicBlockArgument(str, "get_owned_projects"),
+                        VariableBlockArgument(VariableClass.LIST),
+                    ],
+                    save_to=BlockContext.ARGUMENTS[1],
+                    block_type=BlockType.OPERATION,
                     block_result_type=None,  # TODO: change
-                )
+                ),
+                ServiceBlock(
+                    id="is_issue_open",
+                    function_name="is_issue_open",
+                    message="Is issue %1 open?",
+                    arguments=[
+                        BlockArgument(str, "Add here an issue variable"),
+                    ],
+                    block_type=BlockType.GETTER,
+                    block_result_type="boolean",  # TODO: change
+                ),
+                ServiceBlock(
+                    id="get_issue_assignee",
+                    function_name="get_issue_assignee",
+                    message="Get issue %1 assignee",
+                    arguments=[
+                        BlockArgument(str, "Add here an issue variable"),
+                    ],
+                    block_type=BlockType.GETTER,
+                    block_result_type="string",  # TODO: change
+                ),
+                ServiceBlock(
+                    id="get_issue_author",
+                    function_name="get_issue_author",
+                    message="Get issue %1 author",
+                    arguments=[
+                        BlockArgument(str, "Add here an issue variable"),
+                    ],
+                    block_type=BlockType.GETTER,
+                    block_result_type="string",  # TODO: change
+                ),
+                ServiceBlock(
+                    id="get_issue_title",
+                    function_name="get_issue_title",
+                    message="Get issue %1 title",
+                    arguments=[
+                        BlockArgument(str, "Add here an issue variable"),
+                    ],
+                    block_type=BlockType.GETTER,
+                    block_result_type="string",  # TODO: change
+                ),
+                ServiceBlock(
+                    id="get_issue_url",
+                    function_name="get_issue_url",
+                    message="Get issue %1 URL",
+                    arguments=[
+                        BlockArgument(str, "Add here an issue variable"),
+                    ],
+                    block_type=BlockType.GETTER,
+                    block_result_type="string",  # TODO: change
+                ),
             ],
         )
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        print("{} <service-operation-url>".format(sys.argv[0]))
-        exit(0)
-
     logging.basicConfig()
     logging.getLogger().setLevel(logging.DEBUG)
-    service = GitlabService(sys.argv[1])
+
+    bridge_endpoint = config.get_bridge_endpoint()
+
+    service = GitlabService(sqlite_storage.get_default(), bridge_endpoint)
     service.run()
 

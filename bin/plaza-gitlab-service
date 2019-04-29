@@ -61,6 +61,7 @@ class GitlabService(PlazaService):
             "get_issue_author": self.get_issue_author,
             "get_issue_title": self.get_issue_title,
             "get_issue_url": self.get_issue_url,
+            "create_issue_on_project": self.create_issue_on_project,
         }
         self.SUPPORTED_CALLBACKS = {"get_owned_projects": self.get_owned_projects}
 
@@ -99,6 +100,25 @@ class GitlabService(PlazaService):
 
                 results.append(issue_id)
             return results
+
+        raise Exception("Not found")
+
+    async def create_issue_on_project(self, project_id, issue_title, extra_data):
+        for user in self.storage.get_gitlab_users(extra_data.user_id):
+            # TODO: save which user has access to which process
+            gl = gitlab.Gitlab(user["instance"], user["token"])
+            try:
+                project = gl.projects.get(project_id, lazy=True)
+                issue = project.issues.create({"title": issue_title})
+                issue_id = "{project_id}/{issue_id}".format(
+                    project_id=project_id, issue_id=issue.attributes["iid"]
+                )
+                return issue_id
+
+            except Exception as e:
+                # Maybe the token is not the correct one
+                logging.info("[Get issues] Exception: {}".format(e))
+                continue
 
         raise Exception("Not found")
 
@@ -185,6 +205,19 @@ class GitlabService(PlazaService):
                         VariableBlockArgument(VariableClass.LIST),
                     ],
                     save_to=BlockContext.ARGUMENTS[1],
+                    block_type=BlockType.OPERATION,
+                    block_result_type=None,  # TODO: change
+                ),
+                ServiceBlock(
+                    id="create_issue_on_project",
+                    function_name="create_issue_on_project",
+                    message="Create issue on %1 named %2. Save to %3",
+                    arguments=[
+                        DynamicBlockArgument(str, "get_owned_projects"),
+                        BlockArgument(str, "Issue title"),
+                        VariableBlockArgument(),
+                    ],
+                    save_to=BlockContext.ARGUMENTS[2],
                     block_type=BlockType.OPERATION,
                     block_result_type=None,  # TODO: change
                 ),

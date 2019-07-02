@@ -193,7 +193,7 @@ class GitlabService(PlazaService):
     def handle_configuration(self):
         return ServiceConfiguration(
             service_name="Gitlab",
-            is_public=False,
+            is_public=True,
             registration=self.registerer,
             blocks=[
                 ServiceBlock(

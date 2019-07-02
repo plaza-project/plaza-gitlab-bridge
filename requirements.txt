@@ -2,4 +2,4 @@
 python-gitlab
 
 # Plaza
-plaza-service
+git+https://gitlab.com/plaza-project/bridges/python-plaza-lib

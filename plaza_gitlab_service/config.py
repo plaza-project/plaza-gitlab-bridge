@@ -3,6 +3,7 @@ import json
 import os
 from xdg import XDG_CONFIG_HOME
 
+PLAZA_BRIDGE_ENDPOINT_ENV = 'PLAZA_BRIDGE_ENDPOINT'
 PLAZA_BRIDGE_ENDPOINT_INDEX = "plaza_bridge_endpoint"
 
 global directory, config_file
@@ -24,7 +25,12 @@ def _save_config(config):
 
 
 def get_bridge_endpoint():
+    # Check if the bridge endpoint is defined in an environment variable
+    plaza_bridge_endpoint_env = os.getenv(PLAZA_BRIDGE_ENDPOINT_ENV, None)
+    if plaza_bridge_endpoint_env is not None:
+        return plaza_bridge_endpoint_env
 
+    # If not, request it and save it to a file
     config = _get_config()
     if config.get(PLAZA_BRIDGE_ENDPOINT_INDEX, None) is None:
         config[PLAZA_BRIDGE_ENDPOINT_INDEX] = input("Plaza bridge endpoint: ")

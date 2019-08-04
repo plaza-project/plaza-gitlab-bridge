@@ -58,9 +58,11 @@ class Registerer(FormBasedServiceRegistration):
 
 STORAGE = sqlite_storage.get_default()
 
-bridge = PlazaBridge(name="Gitlab - test",
-                     # is_public=True,  # False by default
-                     registerer=Registerer(STORAGE))
+bridge = PlazaBridge(
+    name="Gitlab - test",
+    # is_public=True,  # False by default
+    registerer=Registerer(STORAGE),
+)
 
 
 @bridge.callback
@@ -76,12 +78,14 @@ def get_owned_projects(_callback_name, extra_data):
     return results
 
 
-@bridge.operation(message="Save issues from own project %1 to list %2",
-                  arguments=[
-                      CallbackBlockArgument(str, get_owned_projects),
-                      VariableBlockArgument(VariableClass.LIST),
-                  ],
-                  save_to=BlockContext.ARGUMENTS[1])
+@bridge.operation(
+    message="Save issues from own project %1 to list %2",
+    arguments=[
+        CallbackBlockArgument(str, get_owned_projects),
+        VariableBlockArgument(VariableClass.LIST),
+    ],
+    save_to=BlockContext.ARGUMENTS[1],
+)
 def get_issues(project_id, extra_data):
     for user in STORAGE.get_gitlab_users(extra_data.user_id):
         # TODO: save which user has access to which process
@@ -106,13 +110,15 @@ def get_issues(project_id, extra_data):
     raise Exception("Not found")
 
 
-@bridge.operation(message="Create issue on %1 named %2. Save to %3",
-                  arguments=[
-                      CallbackBlockArgument(str, get_owned_projects),
-                      BlockArgument(str, "Issue title"),
-                    VariableBlockArgument(),
-                  ],
-                  save_to=BlockContext.ARGUMENTS[2])
+@bridge.operation(
+    message="Create issue on %1 named %2. Save to %3",
+    arguments=[
+        CallbackBlockArgument(str, get_owned_projects),
+        BlockArgument(str, "Issue title"),
+        VariableBlockArgument(),
+    ],
+    save_to=BlockContext.ARGUMENTS[2],
+)
 def create_issue_on_project(project_id, issue_title, extra_data):
     for user in STORAGE.get_gitlab_users(extra_data.user_id):
         # TODO: save which user has access to which process
@@ -135,77 +141,80 @@ def create_issue_on_project(project_id, issue_title, extra_data):
 
 ## Helper function
 def _get_issue_property(issue_pointer, extra_data, getter):
-   project_id, issue_id = issue_pointer.split('/')
-   for user in STORAGE.get_gitlab_users(extra_data.user_id):
-       # TODO: save which user has access to which process
-       gl = gitlab.Gitlab(user["instance"], user["token"])
-       try:
-           project = gl.projects.get(project_id, lazy=True)
-           issue = project.issues.get(issue_id)
-       except Exception as e:
-           # Maybe the token is not the correct one
-           logging.info("[Get issues] Exception: {}".format(e))
-           continue
+    project_id, issue_id = issue_pointer.split("/")
+    for user in STORAGE.get_gitlab_users(extra_data.user_id):
+        # TODO: save which user has access to which process
+        gl = gitlab.Gitlab(user["instance"], user["token"])
+        try:
+            project = gl.projects.get(project_id, lazy=True)
+            issue = project.issues.get(issue_id)
+        except Exception as e:
+            # Maybe the token is not the correct one
+            logging.info("[Get issues] Exception: {}".format(e))
+            continue
 
-       return getter(issue)
+        return getter(issue)
 
-   raise Exception("Not found")
+    raise Exception("Not found")
 
 
-@bridge.getter(message="Is issue %1 open?",
-               arguments=[
-                   BlockArgument(str, "Add here an issue variable"),
-               ],
-               block_result_type=bool)
+@bridge.getter(
+    message="Is issue %1 open?",
+    arguments=[BlockArgument(str, "Add here an issue variable")],
+    block_result_type=bool,
+)
 def is_issue_open(issue_pointer, extra_data):
-    return _get_issue_property(issue_pointer, extra_data,
-                               lambda issue: issue.attributes['state'] == 'opened')
+    return _get_issue_property(
+        issue_pointer, extra_data, lambda issue: issue.attributes["state"] == "opened"
+    )
 
 
-@bridge.getter(message="Get issue %1 assignee",
-               arguments=[
-                   BlockArgument(str, "Add here an issue variable"),
-               ],
-               block_result_type=str)
+@bridge.getter(
+    message="Get issue %1 assignee",
+    arguments=[BlockArgument(str, "Add here an issue variable")],
+    block_result_type=str,
+)
 def get_issue_assignee(issue_pointer, extra_data):
-   def _get_assignee(issue):
-       assignees = issue.attributes['assignees']
-       if assignees is None or len(assignees) == 0:
-           return 'none'
-       return assignees[0]['username']
+    def _get_assignee(issue):
+        assignees = issue.attributes["assignees"]
+        if assignees is None or len(assignees) == 0:
+            return "none"
+        return assignees[0]["username"]
 
-   return _get_issue_property(issue_pointer, extra_data,
-                              _get_assignee)
+    return _get_issue_property(issue_pointer, extra_data, _get_assignee)
 
 
-@bridge.getter(message="Get issue %1 author",
-               arguments=[
-                   BlockArgument(str, "Add here an issue variable"),
-               ],
-               block_result_type=str)
+@bridge.getter(
+    message="Get issue %1 author",
+    arguments=[BlockArgument(str, "Add here an issue variable")],
+    block_result_type=str,
+)
 def get_issue_author(issue_pointer, extra_data):
-   return _get_issue_property(issue_pointer, extra_data,
-                              lambda issue: issue.attributes['author']['username'])
+    return _get_issue_property(
+        issue_pointer, extra_data, lambda issue: issue.attributes["author"]["username"]
+    )
 
 
-@bridge.getter(message="Get issue %1 title",
-               arguments=[
-                   BlockArgument(str, "Add here an issue variable"),
-               ],
-               block_result_type=str)
+@bridge.getter(
+    message="Get issue %1 title",
+    arguments=[BlockArgument(str, "Add here an issue variable")],
+    block_result_type=str,
+)
 def get_issue_title(issue_pointer, extra_data):
-   return _get_issue_property(issue_pointer, extra_data,
-                              lambda issue: issue.attributes['title'])
+    return _get_issue_property(
+        issue_pointer, extra_data, lambda issue: issue.attributes["title"]
+    )
 
 
-@bridge.getter(message="Get issue %1 URL",
-               arguments=[
-                   BlockArgument(str, "Add here an issue variable"),
-               ],
-               block_result_type=str)
+@bridge.getter(
+    message="Get issue %1 URL",
+    arguments=[BlockArgument(str, "Add here an issue variable")],
+    block_result_type=str,
+)
 def get_issue_url(issue_pointer, extra_data):
-   return _get_issue_property(issue_pointer, extra_data,
-                              lambda issue: issue.attributes['web_url'])
+    return _get_issue_property(
+        issue_pointer, extra_data, lambda issue: issue.attributes["web_url"]
+    )
 
 
 if __name__ == "__main__":

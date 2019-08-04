@@ -43,7 +43,7 @@ class Registerer(FormBasedServiceRegistration):
         gl.auth()
         gitlab_user_id = gl.user.attributes["id"]
         username = gl.user.attributes["username"]
-        self.storage.register_user(
+        STORAGE.register_user(
             {
                 "user_id": gitlab_user_id,
                 "instance": gitlab_instance,
@@ -66,7 +66,7 @@ bridge = PlazaBridge(
 
 
 @bridge.callback
-def get_owned_projects(_callback_name, extra_data):
+def get_owned_projects(extra_data):
     results = {}
     for user in STORAGE.get_gitlab_users(extra_data.user_id):
         gl = gitlab.Gitlab(user["instance"], user["token"])

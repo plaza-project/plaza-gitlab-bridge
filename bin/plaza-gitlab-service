@@ -16,6 +16,7 @@ import gitlab
 from plaza_gitlab_service import config
 from plaza_gitlab_service.storage import sqlite_storage
 
+STORAGE = sqlite_storage.get_default()
 
 class Registerer(FormBasedServiceRegistration):
     def get_call_to_action_text(self, extra_data):
@@ -50,12 +51,10 @@ class Registerer(FormBasedServiceRegistration):
         return True
 
 
-STORAGE = sqlite_storage.get_default()
-
 bridge = PlazaBridge(
     name="Gitlab - test",
     # is_public=True,  # False by default
-    registerer=Registerer(STORAGE),
+    registerer=Registerer(),
 )
 
 

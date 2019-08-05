@@ -29,12 +29,6 @@ class Registerer(FormBasedServiceRegistration):
         """
 
     def register(self, data, extra_data):
-        print(
-            "User {} is registered with: {}".format(
-                extra_data.user_id, json.dumps(data["form"], indent=4)
-            )
-        )
-
         plaza_user_id = extra_data.user_id
         gitlab_instance = data["form"]["instance"]
         gitlab_token = data["form"]["token"]

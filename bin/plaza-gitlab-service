@@ -13,7 +13,7 @@ from plaza_bridge.legacy import (
 )
 import gitlab
 
-from plaza_gitlab_service import serializers, config
+from plaza_gitlab_service import config
 from plaza_gitlab_service.storage import sqlite_storage
 
 

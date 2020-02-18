@@ -2,21 +2,20 @@
 
 import logging
 import json
-from plaza_bridge import PlazaBridge
-from plaza_bridge.legacy import (
+from plaza_bridge import (
+    PlazaBridge,
     BlockArgument,
     BlockContext,
     CallbackBlockArgument,
     VariableBlockArgument,
-    VariableClass,
     FormBasedServiceRegistration,
 )
 import gitlab
 
 from plaza_gitlab_service import config
-from plaza_gitlab_service.storage import sqlite_storage
+from plaza_gitlab_service import storage
 
-STORAGE = sqlite_storage.get_default()
+STORAGE = storage.get_engine()
 
 class Registerer(FormBasedServiceRegistration):
     def get_call_to_action_text(self, extra_data):
@@ -52,8 +51,8 @@ class Registerer(FormBasedServiceRegistration):
 
 
 bridge = PlazaBridge(
-    name="Gitlab - test",
-    # is_public=True,  # False by default
+    name="Gitlab",
+    is_public=True,
     registerer=Registerer(),
 )
 
@@ -76,7 +75,7 @@ def get_owned_projects(extra_data):
     message="Save issues from own project %1 to list %2",
     arguments=[
         CallbackBlockArgument(str, get_owned_projects),
-        VariableBlockArgument(VariableClass.LIST),
+        VariableBlockArgument(list),
     ],
     save_to=BlockContext.ARGUMENTS[1],
 )

@@ -12,8 +12,11 @@ from plaza_bridge import (
 )
 import gitlab
 
-from plaza_gitlab_service import config
-from plaza_gitlab_service import storage
+from plaza_gitlab_service import (
+    config,
+    storage,
+    assets,
+)
 
 STORAGE = storage.get_engine()
 
@@ -47,13 +50,15 @@ class Registerer(FormBasedServiceRegistration):
             plaza_user_id,
         )
 
-        return True
+        return (True, { "name": username })
 
 
 bridge = PlazaBridge(
     name="Gitlab",
+    icon=assets.open_icon(),
     is_public=True,
     registerer=Registerer(),
+    allow_multiple_connections=False,
 )
 
 

@@ -58,6 +58,8 @@ bridge = PlazaBridge(
     icon=assets.open_icon(),
     is_public=True,
     registerer=Registerer(),
+    endpoint=config.get_bridge_endpoint(),
+    token=config.get_auth_token(),
     allow_multiple_connections=False,
 )
 
@@ -225,5 +227,4 @@ if __name__ == "__main__":
     logging.basicConfig(format='%(asctime)s - %(levelname)s [%(filename)s] %(message)s')
     logging.getLogger().setLevel(logging.DEBUG)
 
-    bridge.endpoint = config.get_bridge_endpoint()
     bridge.run()

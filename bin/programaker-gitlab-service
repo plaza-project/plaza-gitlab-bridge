@@ -2,8 +2,8 @@
 
 import logging
 import json
-from plaza_bridge import (
-    PlazaBridge,
+from programaker_bridge import (
+    ProgramakerBridge,
     BlockArgument,
     BlockContext,
     CallbackBlockArgument,
@@ -12,7 +12,7 @@ from plaza_bridge import (
 )
 import gitlab
 
-from plaza_gitlab_service import (
+from programaker_gitlab_service import (
     config,
     storage,
     assets,
@@ -32,7 +32,7 @@ class Registerer(FormBasedServiceRegistration):
         """
 
     def register(self, data, extra_data):
-        plaza_user_id = extra_data.user_id
+        programaker_user_id = extra_data.user_id
         gitlab_instance = data["form"]["instance"]
         gitlab_token = data["form"]["token"]
 
@@ -47,13 +47,13 @@ class Registerer(FormBasedServiceRegistration):
                 "token": gitlab_token,
                 "username": username,
             },
-            plaza_user_id,
+            programaker_user_id,
         )
 
         return (True, { "name": username })
 
 
-bridge = PlazaBridge(
+bridge = ProgramakerBridge(
     name="Gitlab",
     icon=assets.open_icon(),
     is_public=True,

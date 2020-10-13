@@ -1,17 +1,17 @@
 from setuptools import setup
 
-setup(name='plaza-gitlab-service',
+setup(name='programaker-gitlab-service',
       version='0.0.1',
-      description='Plaza service to interact with a Gitlab instance.',
+      description='Programaker service to interact with a Gitlab instance.',
       author='kenkeiras',
       author_email='kenkeiras@codigoparallevar.com',
       license='Apache License 2.0',
-      packages=['plaza_gitlab_service'],
-      scripts=['bin/plaza-gitlab-service'],
+      packages=['programaker_gitlab_service'],
+      scripts=['bin/programaker-gitlab-service'],
       include_package_data=True,
       install_requires = [
           'python-gitlab',
-          'programaker_bridge',
+          'programaker-bridge',
           'xdg',
       ],
       zip_safe=False)

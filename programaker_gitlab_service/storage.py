@@ -6,7 +6,12 @@ import sqlalchemy
 
 from . import models
 
-DB_PATH_ENV = 'PLAZA_GITLAB_BRIDGE_DB_PATH'
+DB_PATH_ENV = 'GITLAB_BRIDGE_DB_PATH'
+
+if os.getenv(DB_PATH_ENV, None) is None:
+    # Support old environment variable
+    DB_PATH_ENV = 'PLAZA_GITLAB_BRIDGE_DB_PATH'
+
 
 if os.getenv(DB_PATH_ENV, None) is None:
     _DATA_DIRECTORY = os.path.join(XDG_DATA_HOME, "plaza", "bridges", "gitlab")
@@ -34,29 +39,29 @@ class StorageEngine:
     def _connect_db(self):
         return EngineContext(self.engine)
 
-    def register_user(self, gitlab_user, plaza_user):
+    def register_user(self, gitlab_user, programaker_user):
         with self._connect_db() as conn:
             gitlab_id = self._get_or_add_gitlab_user(conn, gitlab_user)
-            plaza_id = self._get_or_add_plaza_user(conn, plaza_user)
+            programaker_id = self._get_or_add_programaker_user(conn, programaker_user)
 
             check = conn.execute(
                 sqlalchemy.select([models.PlazaUsersInGitlab.c.plaza_id])
                 .where(
                     sqlalchemy.and_(
-                        models.PlazaUsersInGitlab.c.plaza_id == plaza_id,
+                        models.PlazaUsersInGitlab.c.plaza_id == programaker_id,
                         models.PlazaUsersInGitlab.c.gitlab_id == gitlab_id))
             ).fetchone()
 
             if check is not None:
                 return
 
-            insert = models.PlazaUsersInGitlab.insert().values(plaza_id=plaza_id,
+            insert = models.PlazaUsersInGitlab.insert().values(plaza_id=programaker_id,
                                                                gitlab_id=gitlab_id)
             conn.execute(insert)
 
-    def get_gitlab_users(self, plaza_user):
+    def get_gitlab_users(self, programaker_user):
         with self._connect_db() as conn:
-            plaza_id = self._get_or_add_plaza_user(conn, plaza_user)
+            programaker_id = self._get_or_add_programaker_user(conn, programaker_user)
 
             join = sqlalchemy.join(models.GitlabUserRegistration, models.PlazaUsersInGitlab,
                                    models.GitlabUserRegistration.c.id
@@ -69,7 +74,7 @@ class StorageEngine:
                     models.GitlabUserRegistration.c.gitlab_token,
                 ])
                 .select_from(join)
-                .where(models.PlazaUsersInGitlab.c.plaza_id == plaza_id)
+                .where(models.PlazaUsersInGitlab.c.plaza_id == programaker_id)
             ).fetchall()
 
             return [
@@ -98,16 +103,16 @@ class StorageEngine:
         result = conn.execute(insert)
         return result.inserted_primary_key[0]
 
-    def _get_or_add_plaza_user(self, conn, plaza_user):
+    def _get_or_add_programaker_user(self, conn, programaker_user):
         check = conn.execute(
             sqlalchemy.select([models.PlazaUsers.c.id])
-            .where(models.PlazaUsers.c.plaza_user_id == plaza_user)
+            .where(models.PlazaUsers.c.plaza_user_id == programaker_user)
         ).fetchone()
 
         if check is not None:
             return check.id
 
-        insert = models.PlazaUsers.insert().values(plaza_user_id=plaza_user)
+        insert = models.PlazaUsers.insert().values(plaza_user_id=programaker_user)
         result = conn.execute(insert)
         return result.inserted_primary_key[0]
 

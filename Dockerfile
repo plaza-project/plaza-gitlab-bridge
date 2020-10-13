@@ -14,4 +14,4 @@ RUN pip install -e /app
 # Bridge database (projects, users, ...)
 VOLUME /root/.local/share/plaza/bridges/gitlab/db.sqlite
 
-CMD plaza-gitlab-service
+CMD programaker-gitlab-service
